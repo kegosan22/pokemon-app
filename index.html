@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ポケモン検索</title>
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: sans-serif;
+    }
+
+    .container {
+      text-align: center;
+    }
+
+    input {
+      padding: 8px;
+      font-size: 16px;
+      width: 200px;
+    }
+
+    button {
+      padding: 8px 16px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    #result {
+      margin-top: 20px;
+    }
+
+    img {
+      width: 150px;
+    }
+  </style>
+
+<link rel="manifest" href="manifest.json">
+
+</head>
+<body>
+
+  <div class="container">
+    <h1>ポケモン検索</h1>
+
+    <input type="text" id="pokemonName" placeholder="例：ピカチュウ">
+    <br>
+    <button onclick="searchPokemon()">検索</button>
+
+    <div id="result"></div>
+  </div>
+
+<script>
+  // ★ タイプ英語 → 日本語 変換表
+  const typeMap = {
+    normal: "ノーマル",
+    fire: "ほのお",
+    water: "みず",
+    electric: "でんき",
+    grass: "くさ",
+    ice: "こおり",
+    fighting: "かくとう",
+    poison: "どく",
+    ground: "じめん",
+    flying: "ひこう",
+    psychic: "エスパー",
+    bug: "むし",
+    rock: "いわ",
+    ghost: "ゴースト",
+    dragon: "ドラゴン",
+    dark: "あく",
+    steel: "はがね",
+    fairy: "フェアリー"
+  };
+
+  // 日本語名 → 英語名 キャッシュ
+  const nameCache = {};
+
+  async function searchPokemon() {
+    const inputName = document.getElementById("pokemonName").value.trim();
+    const resultDiv = document.getElementById("result");
+
+    if (!inputName) return;
+
+    resultDiv.innerText = "検索中…";
+
+    try {
+      // ① キャッシュにあれば即使う
+      if (!nameCache[inputName]) {
+        // 全ポケモン一覧
+        const listResponse = await fetch(
+          "https://pokeapi.co/api/v2/pokemon-species?limit=10000"
+        );
+        const listData = await listResponse.json();
+
+        let foundEnglishName = null;
+
+        // ★ 見つかったら即終了（ここが重要）
+        for (const s of listData.results) {
+          const detailResponse = await fetch(s.url);
+          const detailData = await detailResponse.json();
+
+          const ja = detailData.names.find(
+            n => n.language.name === "ja"
+          );
+
+          if (ja && ja.name === inputName) {
+            foundEnglishName = detailData.name;
+            nameCache[inputName] = foundEnglishName;
+            break;
+          }
+        }
+
+        if (!foundEnglishName) {
+          throw new Error("not found");
+        }
+      }
+
+      // ② ポケモン情報取得
+      const pokemonResponse = await fetch(
+        `https://pokeapi.co/api/v2/pokemon/${nameCache[inputName]}`
+      );
+      const pokemonData = await pokemonResponse.json();
+
+      const imageUrl = pokemonData.sprites.front_default;
+      const types = pokemonData.types
+      .map(t => typeMap[t.type.name] || t.type.name)
+      .join(" / ");
+
+
+      resultDiv.innerHTML = `
+        <h2>${inputName}</h2>
+        <img src="${imageUrl}">
+        <p>タイプ：${types}</p>
+      `;
+
+    } catch (e) {
+      resultDiv.innerText = "ポケモンが見つかりませんでした";
+    }
+  }
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js");
+  }
+</script>
+
+
+
+</body>
+</html>
